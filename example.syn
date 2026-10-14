@@ -1,0 +1,63 @@
+// ============================================================================
+// SynapseDSL v0.1 — Hardware-Aware Neuromorphic Graph Specification
+// File: example.syn
+// Purpose: Sparse temporal pattern recognition with local synaptic plasticity
+// ============================================================================
+
+@compiler_flags(opt_level = "zero_idle", simd = "auto", memory_model = "sram_ring")
+
+// 1. Define hardware memory arena to prevent heap fragmentation
+arena FastGraphMemory {
+    capacity: 64_KB,
+    alignment: 64_B,
+    eviction_policy: "drop_cold_synapses"
+}
+
+// 2. Define a stateful neuromorphic node primitive
+node SensoryNeuron(id: u16) in FastGraphMemory {
+    state v_mem: f16 = 0.0;          // Membrane potential
+    state refractory: u8 = 0;        // Cooldown ticks after firing
+    param v_thresh: f16 = 0.65;      // Activation threshold
+    param leak: f16 = 0.90;          // Exponential temporal decay
+
+    // Asynchronous handler: invoked ONLY when an upstream pulse arrives
+    on_event(incoming_weight: f16) {
+        if refractory == 0 {
+            v_mem = (v_mem * leak) + incoming_weight;
+
+            if v_mem >= v_thresh {
+                v_mem = 0.0;
+                refractory = 3;
+                route_pulse(source = id, amplitude = 1.0);
+            }
+        } else {
+            refractory -= 1;
+        }
+    }
+}
+
+// 3. Define dynamic sparse topology and local plasticity rule (STDP-inspired)
+topology TemporalEncoder {
+    spawn input_layer: SensoryNeuron[256];
+    spawn associative_core: SensoryNeuron[512];
+
+    connect sparse(input_layer -> associative_core) {
+        density: 0.08,               // 92% structural sparsity
+        init_weight: uniform(0.1, 0.5),
+        
+        // Local learning rule without global backpropagation
+        on_coincidence(delta_t: u8, weight: mut f16) {
+            if delta_t <= 2 {
+                weight = clamp(weight + 0.04, 0.0, 1.0); // Strengthen active path
+            } else {
+                weight = clamp(weight - 0.01, 0.0, 1.0); // Prune weak path
+            }
+        }
+    }
+}
+
+// 4. Entrypoint for streaming execution
+pipeline main(sensor_stream: stream<f16>) {
+     bind(sensor_stream => TemporalEncoder.input_layer);
+     execute_event_loop(max_ticks = 1000, sleep_on_idle = true);
+}
