@@ -1,3 +1,5 @@
+glowing-winner
+PoC for my project about new coding  language and nex-level artificial intelligence architecture 
 # SynapseDSL: Event-Driven Neuromorphic Graph Architecture
 
 **SynapseDSL** is an experimental hardware-aware domain-specific language (DSL) and sparse graph execution engine designed to replace brute-force dense matrix multiplication ($O(N^2)$) with asynchronous, biologically inspired event-driven computation.
